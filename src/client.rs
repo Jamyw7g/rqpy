@@ -2,6 +2,7 @@ use std::{collections::HashMap, convert::TryInto, str::FromStr, time::Duration};
 
 use pyo3::exceptions::PyValueError;
 use pyo3::{exceptions::PyTypeError, prelude::*, types::PyDict};
+use reqwest::multipart::{Form, Part};
 use reqwest::{redirect::Policy, Client, Method, Proxy};
 use reqwest::{Certificate, Version};
 
@@ -50,7 +51,12 @@ impl RSClient {
                         "http" => val!(Proxy::http(v)),
                         "https" => val!(Proxy::https(v)),
                         "all" => val!(Proxy::all(v)),
-                        _ => return Err(PyErr::new::<PyValueError, _>(format!("No support {}:{}", k, v)))
+                        _ => {
+                            return Err(PyErr::new::<PyValueError, _>(format!(
+                                "No support {}:{}",
+                                k, v
+                            )))
+                        }
                     };
                     builder = builder.proxy(p);
                 }
@@ -125,6 +131,15 @@ impl RSClient {
                 let query = query.extract::<Vec<(&str, &str)>>()?;
                 builder = builder.query(&query);
             }
+            if let Some(data) = kwargs.get_item("multipart") {
+                let data = data.downcast()?;
+                let part = build_multipart(data)?;
+                builder = builder.multipart(part);
+            }
+            if let Some(form) = kwargs.get_item("form") {
+                let form = &form.extract::<HashMap<String, String>>()?;
+                builder = builder.form(form);
+            }
             if let Some(version) = kwargs.get_item("version") {
                 let ver = version.extract::<i32>()?;
                 let ver = match ver {
@@ -151,4 +166,54 @@ impl RSClient {
             Ok(Python::with_gil(|py| resp.into_py(py)))
         })
     }
+}
+
+fn build_multipart(data: &PyDict) -> PyResult<Form> {
+    let mut form = Form::new();
+    if let Some(texts) = data.get_item("text") {
+        let texts: &PyDict = texts.downcast()?;
+        for (name, value) in texts.iter() {
+            let name: String = name.extract()?;
+            let value: String = value.extract()?;
+            form = form.text(name, value);
+        }
+    }
+    if let Some(parts) = data.get_item("part") {
+        let parts: &PyDict = parts.downcast()?;
+        for (name, part) in parts {
+            let name: String = name.extract()?;
+            let part: &PyDict = part.downcast()?;
+            if let Some(bytes) = part.get_item("bytes") {
+                let bytes: Vec<u8> = bytes.extract()?;
+                let mut data = Part::bytes(bytes);
+                if let Some(mime) = part.get_item("mime") {
+                    data = val!(data.mime_str(mime.extract()?));
+                }
+                if let Some(filename) = part.get_item("filename") {
+                    data = data.file_name(filename.extract::<String>()?);
+                }
+                form = form.part(name, data);
+            }
+        }
+    }
+    if let Some(encode) = data.get_item("encode") {
+        let encode: &PyDict = encode.downcast()?;
+        if let Some(path_segment) = encode.get_item("path-segment") {
+            if path_segment.is_true()? {
+                form = form.percent_encode_path_segment();
+            }
+        }
+        if let Some(attr_char) = encode.get_item("attr-char") {
+            if attr_char.is_true()? {
+                form = form.percent_encode_attr_chars();
+            }
+        }
+        if let Some(noop) = encode.get_item("noop") {
+            if noop.is_true()? {
+                form = form.percent_encode_noop();
+            }
+        }
+    }
+
+    Ok(form)
 }

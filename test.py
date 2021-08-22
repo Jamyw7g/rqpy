@@ -3,13 +3,13 @@ import rqpy
 
 
 proxies = {"all": "socks5://127.0.0.1:7890"}
-headers = {'range': 'bytes=-1023'}
+headers = {'range': 'bytes=0-1023'}
 
 async def get(client, url):
     filename = url.split('/')[-1]
     resp = await client.request('GET', url)
     with open(filename, 'wb') as fp:
-        return await resp.write_bytes(filename)
+        return await resp.write_bytes(fp)
 
 
 async def bare_get(url):
