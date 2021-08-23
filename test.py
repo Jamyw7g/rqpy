@@ -4,6 +4,7 @@ import rqpy
 
 proxies = {"all": "socks5://127.0.0.1:7890"}
 headers = {'range': 'bytes=0-1023'}
+json = {'usr': 'hello', 'wu': {'n': 9090}}
 
 async def get(client, url):
     filename = url.split('/')[-1]
@@ -13,7 +14,7 @@ async def get(client, url):
 
 
 async def bare_get(url):
-    return await rqpy.get(url)
+    return await rqpy.get(url, json = json)
 
 urls = [
     "https://img.zcool.cn/community/019b1a611f2ff711013f47206bdd0f.jpg",
@@ -33,4 +34,5 @@ loop = asyncio.get_event_loop()
 print(loop.run_until_complete(tasks))
 resp = loop.run_until_complete(bare_get(urls[0]))
 print(resp.content_length())
+print(loop.run_until_complete(bare_get("http://127.0.0.1:8080")))
 

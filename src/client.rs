@@ -140,6 +140,10 @@ impl RSClient {
                 let form = &form.extract::<HashMap<String, String>>()?;
                 builder = builder.form(form);
             }
+            if let Some(json) = kwargs.get_item("json") {
+                let json = json.str()?.to_str()?;
+                builder = builder.json(json);
+            }
             if let Some(version) = kwargs.get_item("version") {
                 let ver = version.extract::<i32>()?;
                 let ver = match ver {
